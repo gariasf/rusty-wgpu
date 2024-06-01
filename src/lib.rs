@@ -1,5 +1,6 @@
 use std::iter;
 
+use wgpu::util::DeviceExt;
 use winit::{
     event::*,
     event_loop::EventLoop,
@@ -9,6 +10,62 @@ use winit::{
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)] // Pod => Plain old data
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+
+impl Vertex {
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            // How wide the vertex is. When the shader goes to the next vertex, it will skip
+            // over this number of bytes.
+            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            // Wether each element represents per-vertex data or per-instance data
+            step_mode: wgpu::VertexStepMode::Vertex,
+            // Vertex attributes is generally a mapping 1:1 of our struct's fields.
+            attributes: &[
+                wgpu::VertexAttribute {
+                    // Offset of bytes until the attribute starts
+                    offset: 0,
+                    // This tells the sahder where to store the attribute.
+                    // 0 would be position in the vertex struct, and one
+                    // (see second attribute) would be color.
+                    // Therefore, in the shader, @location(0) x: vec3<f32> would be position
+                    // in our struct, and @location(1) x: vec3<f32> would correspond
+                    // to the color field in the vertex struct.
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    // Offset of bytes until the attribute starts. This time, 3 times 32 because the
+                    // size of the previous attribute is Float32x3
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
+
+const VERTICES: &[Vertex] = &[
+    Vertex {
+        position: [0.0, 0.5, 0.0],
+        color: [1.0, 0.0, 0.0],
+    },
+    Vertex {
+        position: [-0.5, -0.5, 0.0],
+        color: [0.0, 1.0, 0.0],
+    },
+    Vertex {
+        position: [0.5, -0.5, 0.0],
+        color: [0.0, 0.0, 1.0],
+    },
+];
 
 struct State<'a> {
     surface: wgpu::Surface<'a>,
@@ -21,6 +78,8 @@ struct State<'a> {
     // unsafe references to the window's resources.
     window: &'a Window,
     render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+    num_vertices: u32
 }
 
 impl<'a> State<'a> {
@@ -69,14 +128,14 @@ impl<'a> State<'a> {
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
         let surface_capabilities = surface.get_capabilities(&adapter);
-  
+
         let surface_format = surface_capabilities
             .formats
             .iter()
             .copied()
             .find(|f| f.is_srgb())
             .unwrap_or(surface_capabilities.formats[0]);
-        
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
@@ -95,13 +154,21 @@ impl<'a> State<'a> {
                 push_constant_ranges: &[],
             });
 
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[],
+                buffers: &[
+                    Vertex::desc()
+                ],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -130,6 +197,8 @@ impl<'a> State<'a> {
             multiview: None,
         });
 
+        let num_vertices = VERTICES.len() as u32;
+
         Self {
             surface,
             device,
@@ -138,6 +207,8 @@ impl<'a> State<'a> {
             size,
             window,
             render_pipeline,
+            vertex_buffer,
+            num_vertices
         }
     }
 
@@ -197,7 +268,8 @@ impl<'a> State<'a> {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.draw(0..3, 0..1)
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.draw(0..self.num_vertices, 0..1)
         }
 
         self.queue.submit(iter::once(encoder.finish()));
