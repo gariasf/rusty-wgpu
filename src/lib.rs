@@ -30,10 +30,10 @@ impl Vertex {
                     offset: 0,
                     // This tells the sahder where to store the attribute.
                     // 0 would be position in the vertex struct, and one
-                    // (see second attribute) would be color.
+                    // (see second attribute) would be the next attribute.
                     // Therefore, in the shader, @location(0) x: vec3<f32> would be position
                     // in our struct, and @location(1) x: vec3<f32> would correspond
-                    // to the color field in the vertex struct.
+                    // to the text_coord field in the vertex struct.
                     shader_location: 0,
                     format: wgpu::VertexFormat::Float32x3,
                 },
@@ -50,26 +50,11 @@ impl Vertex {
 }
 
 const VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [-0.0868241, 0.49240386, 0.0],
-        tex_coords: [0.4131759, 0.99240386],
-    }, // A
-    Vertex {
-        position: [-0.49513406, 0.06958647, 0.0],
-        tex_coords: [0.0048659444, 0.56958647],
-    }, // B
-    Vertex {
-        position: [-0.21918549, -0.44939706, 0.0],
-        tex_coords: [0.28081453, 0.05060294],
-    }, // C
-    Vertex {
-        position: [0.35966998, -0.3473291, 0.0],
-        tex_coords: [0.85967, 0.1526709],
-    }, // D
-    Vertex {
-        position: [0.44147372, 0.2347359, 0.0],
-        tex_coords: [0.9414737, 0.7347359],
-    }, // E
+    Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.00759614], }, // A
+    Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.43041354], }, // B
+    Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.949397], }, // C
+    Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.84732914], }, // D
+    Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.2652641], }, // E
 ];
 
 const INDICES: &[i16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
@@ -416,7 +401,6 @@ pub async fn run() {
                     window_id,
                 } if window_id == state.window().id() => {
                     if !state.input(event) {
-                        // UPDATED!
                         match event {
                             WindowEvent::CloseRequested
                             | WindowEvent::KeyboardInput {
