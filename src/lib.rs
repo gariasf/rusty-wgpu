@@ -90,23 +90,24 @@ struct Camera {
     aspect: f32,
     fovy: f32,
     znear: f32,
-    zfar: f32
+    zfar: f32,
 }
 
 impl Camera {
     fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
-        // Move the world to be at the position and retation of the camera. It's an inverse of whatever 
+        // Move the world to be at the position and retation of the camera. It's an inverse of whatever
         // the transform matrix of the camera would be.
         let view = cgmath::Matrix4::look_at_rh(self.eye, self.target, self.up);
 
-        // Warps the scene to give the effect of depth. 
+        // Warps the scene to give the effect of depth.
         // WIthout this, objects up close would be the same size as objects
         // far away.
-        let projection = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
+        let projection =
+            cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
 
         // The coordinate system in wgpu is based on DirecgtX and Metal's
-        // coordinate systems. That means that in normalized device coordinates, 
-        // the x-axis and the y-axis are in the range of -1.0 to +1.0, and the z-axis 
+        // coordinate systems. That means that in normalized device coordinates,
+        // the x-axis and the y-axis are in the range of -1.0 to +1.0, and the z-axis
         // is 0.0 to +1.0. The cgmath crate is built for OpenGL's coordinate system.
         // This matrix will scale and translate our scene from OpenGL's coordinate system
         // to WGPU's.
@@ -168,7 +169,8 @@ impl CameraController {
                 ..
             } => {
                 let is_pressed = *state == ElementState::Pressed;
-                match keycode {KeyCode::KeyW | KeyCode::ArrowUp => {
+                match keycode {
+                    KeyCode::KeyW | KeyCode::ArrowUp => {
                         self.is_forward_pressed = is_pressed;
                         true
                     }
@@ -213,18 +215,16 @@ impl CameraController {
         let forward_mag = forward.magnitude();
 
         if self.is_right_pressed {
-            // Rescale the distance between the target and the eye so 
-            // that it doesn't change. The eye, therefore, still 
+            // Rescale the distance between the target and the eye so
+            // that it doesn't change. The eye, therefore, still
             // lies on the circle made by the target and eye.
             camera.eye = camera.target - (forward - right * self.speed).normalize() * forward_mag;
         }
         if self.is_left_pressed {
             camera.eye = camera.target - (forward + right * self.speed).normalize() * forward_mag;
-
         }
     }
 }
-
 
 struct State<'a> {
     surface: wgpu::Surface<'a>,
@@ -245,7 +245,7 @@ struct State<'a> {
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    camera_controller: CameraController
+    camera_controller: CameraController,
 }
 
 impl<'a> State<'a> {
@@ -355,7 +355,6 @@ impl<'a> State<'a> {
             label: Some("diffuse_bind_group"),
         });
 
-        
         let camera = Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
@@ -367,7 +366,7 @@ impl<'a> State<'a> {
             aspect: config.width as f32 / config.height as f32,
             fovy: 45.0,
             znear: 0.1,
-            zfar: 100.0
+            zfar: 100.0,
         };
 
         let camera_controller = CameraController::new(0.2);
@@ -378,37 +377,32 @@ impl<'a> State<'a> {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera buffer"),
             contents: bytemuck::cast_slice(&[camera_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { 
-            entries: &[
-                wgpu::BindGroupLayoutEntry  {
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX, // We only need camera info in the vertex shader
-                    ty: wgpu::BindingType::Buffer { 
-                        ty: wgpu::BufferBindingType::Uniform, 
-                        has_dynamic_offset: false,  // The location of the data in the buffer will not change
-                        min_binding_size: None // Smallest size for the buffer
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false, // The location of the data in the buffer will not change
+                        min_binding_size: None,    // Smallest size for the buffer
                     },
-                    count: None
-                }
-            ],
-            label: Some("camera_bund_group_layout"), 
-        });
+                    count: None,
+                }],
+                label: Some("camera_bund_group_layout"),
+            });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding()
-                }
-            ],
-            label: Some("camera_bind_group")
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
         });
-
-        
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -482,7 +476,7 @@ impl<'a> State<'a> {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
-            camera_controller
+            camera_controller,
         }
     }
 
@@ -505,7 +499,11 @@ impl<'a> State<'a> {
     fn update(&mut self) {
         self.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_projection(&self.camera);
-        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
