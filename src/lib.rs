@@ -76,6 +76,45 @@ const VERTICES: &[Vertex] = &[
 
 const INDICES: &[i16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4];
 
+#[rustfmt::skip]
+pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
+    1.0, 0.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0,
+    0.0, 0.0, 0.5, 0.5,
+    0.0, 0.0, 0.0, 1.0,
+);
+
+struct Camera {
+    eye: cgmath::Point3<f32>,
+    target: cgmath::Point3<f32>,
+    up: cgmath::Vector3<f32>,
+    aspect: f32,
+    fovy: f32,
+    znear: f32,
+    zfar: f32
+}
+
+impl Camera {
+    fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
+        // Move the world to be at the position and retation of the camera. It's an inverse of whatever 
+        // the transform matrix of the camera would be.
+        let view = cgmath::Matrix4::look_at_rh(self.eye, self.target, self.up);
+
+        // Warps the scene to give the effect of depth. 
+        // WIthout this, objects up close would be the same size as objects
+        // far away.
+        let projection = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
+
+        // The coordinate system in wgpu is based on DirecgtX and Metal's
+        // coordinate systems. That means that in normalized device coordinates, 
+        // the x-axis and the y-axis are in the range of -1.0 to +1.0, and the z-axis 
+        // is 0.0 to +1.0. The cgmath crate is built for OpenGL's coordinate system.
+        // This matrix will scale and translate our scene from OpenGL's coordinate system
+        // to WGPU's.
+        return OPENGL_TO_WGPU_MATRIX * projection * view;
+    }
+}
+
 struct State<'a> {
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
@@ -90,7 +129,8 @@ struct State<'a> {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
-    diffuse_bind_group: wgpu::BindGroup
+    diffuse_bind_group: wgpu::BindGroup,
+    camera: Camera
 }
 
 impl<'a> State<'a> {
@@ -200,6 +240,8 @@ impl<'a> State<'a> {
             label: Some("diffuse_bind_group"),
         });
 
+        
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -256,6 +298,20 @@ impl<'a> State<'a> {
 
         let num_indices = INDICES.len() as u32;
 
+        let camera = Camera {
+            // position the camera 1 unit up and 2 units back
+            // +z is out of the screen
+            eye: (0.0, 1.0, 2.0).into(),
+            // have it look at the origin
+            target: (0.0, 0.0, 0.0).into(),
+            // which way is "up"
+            up: cgmath::Vector3::unit_y(),
+            aspect: config.width as f32 / config.height as f32,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0
+        };
+
         Self {
             surface,
             device,
@@ -268,6 +324,7 @@ impl<'a> State<'a> {
             index_buffer,
             num_indices,
             diffuse_bind_group,
+            camera
         }
     }
 
